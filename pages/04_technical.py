@@ -137,44 +137,30 @@ prev = ohlcv.iloc[-2] if len(ohlcv) > 1 else latest
 price_chg = latest["close"] - prev["close"]
 pct_chg = price_chg / prev["close"] * 100 if prev["close"] else 0
 
-# 52주 고가/저가: 선택 기간과 무관하게 항상 1년 데이터 기준
-if days >= 365:
-    high_52 = ohlcv["high"].max()
-    low_52  = ohlcv["low"].min()
-else:
-    _start_1y = (end_dt - timedelta(days=365)).strftime("%Y%m%d")
-    _ohlcv_1y = cached_ohlcv(ticker, _start_1y, end_dt.strftime("%Y%m%d"))
-    high_52 = _ohlcv_1y["high"].max() if not _ohlcv_1y.empty else ohlcv["high"].max()
-    low_52  = _ohlcv_1y["low"].min()  if not _ohlcv_1y.empty else ohlcv["low"].min()
+# 기간별 지표 (선택 기간에 따라 변동)
+period_ret = (latest["close"] / ohlcv.iloc[0]["close"] - 1) * 100 if ohlcv.iloc[0]["close"] else 0
+period_high = ohlcv["high"].max()
+period_low = ohlcv["low"].min()
+avg_vol = ohlcv["volume"].mean()
+
 rsi_val = ohlcv["RSI"].dropna().iloc[-1] if not ohlcv["RSI"].dropna().empty else None
 rsi_label = "과매수" if rsi_val and rsi_val > 70 else ("과매도" if rsi_val and rsi_val < 30 else "중립")
 
-st.markdown(f"""
-<div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:12px;">
-  <div style="background:white;border:1px solid #e5e7eb;border-radius:8px;padding:10px 16px;min-width:130px;">
-    <div style="font-size:0.75rem;color:#6b7280;">현재가</div>
-    <div style="font-size:1.1rem;font-weight:700;">{latest['close']:,}원</div>
-    <div style="font-size:0.78rem;color:{'#ef4444' if price_chg>=0 else '#2F64E3'};">{price_chg:+,.0f}원 ({pct_chg:+.2f}%)</div>
-  </div>
-  <div style="background:white;border:1px solid #e5e7eb;border-radius:8px;padding:10px 16px;min-width:130px;">
-    <div style="font-size:0.75rem;color:#6b7280;">거래량</div>
-    <div style="font-size:1.1rem;font-weight:700;">{latest['volume']:,}</div>
-  </div>
-  <div style="background:white;border:1px solid #e5e7eb;border-radius:8px;padding:10px 16px;min-width:130px;">
-    <div style="font-size:0.75rem;color:#6b7280;">52주 고가</div>
-    <div style="font-size:1.1rem;font-weight:700;">{high_52:,}원</div>
-  </div>
-  <div style="background:white;border:1px solid #e5e7eb;border-radius:8px;padding:10px 16px;min-width:130px;">
-    <div style="font-size:0.75rem;color:#6b7280;">52주 저가</div>
-    <div style="font-size:1.1rem;font-weight:700;">{low_52:,}원</div>
-  </div>
-  <div style="background:white;border:1px solid #e5e7eb;border-radius:8px;padding:10px 16px;min-width:130px;">
-    <div style="font-size:0.75rem;color:#6b7280;">RSI (14일)</div>
-    <div style="font-size:1.1rem;font-weight:700;">{f'{rsi_val:.1f}' if rsi_val else 'N/A'}</div>
-    <div style="font-size:0.78rem;color:#6b7280;">{rsi_label}</div>
-  </div>
-</div>
-""", unsafe_allow_html=True)
+mc1, mc2, mc3, mc4, mc5, mc6 = st.columns(6)
+with mc1:
+    st.metric("현재가", f"{latest['close']:,}원",
+              delta=f"{price_chg:+,.0f}원 ({pct_chg:+.2f}%)")
+with mc2:
+    st.metric(f"{period_label} 수익률", f"{period_ret:+.1f}%")
+with mc3:
+    st.metric(f"{period_label} 최고가", f"{period_high:,.0f}원")
+with mc4:
+    st.metric(f"{period_label} 최저가", f"{period_low:,.0f}원")
+with mc5:
+    st.metric("기간 평균 거래량", f"{avg_vol:,.0f}주")
+with mc6:
+    st.metric(f"RSI (14일)", f"{rsi_val:.1f}" if rsi_val else "N/A",
+              delta=rsi_label, delta_color="off")
 
 # 메인 차트: 캔들 + MA + 거래량
 fig = make_subplots(
