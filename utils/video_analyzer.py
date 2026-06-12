@@ -103,3 +103,61 @@ def get_transcript(url: str, video_id: str, openai_api_key: str) -> tuple[list[d
     except Exception:
         segments = get_transcript_from_whisper(url, openai_api_key)
         return segments, "whisper"
+
+
+_ANALYSIS_PROMPT = """\
+아래는 YouTube 영상의 타임스탬프별 트랜스크립트입니다.
+다음 3가지를 반드시 유효한 JSON 형식으로만 반환하세요. JSON 외 다른 텍스트는 절대 포함하지 마세요.
+
+{{
+  "summary": "전체 내용 요약 (3~5문단, 한국어)",
+  "key_moments": [
+    {{"timestamp": "HH:MM:SS", "description": "한 줄 설명 (한국어)"}}
+  ],
+  "keywords": [
+    {{
+      "keyword": "키워드명",
+      "summary": "해당 키워드 관련 내용 요약 2~3문장 (한국어)",
+      "timestamps": ["HH:MM:SS"]
+    }}
+  ]
+}}
+
+key_moments는 5~10개, keywords는 3~7개를 추출하세요.
+
+트랜스크립트:
+{transcript}"""
+
+
+def analyze_transcript(transcript_text: str, anthropic_api_key: str) -> dict:
+    """
+    Claude API로 트랜스크립트 분석.
+    반환: {"summary": str, "key_moments": [...], "keywords": [...]}
+    JSON 파싱 실패 시 ValueError 발생.
+    """
+    client = anthropic.Anthropic(api_key=anthropic_api_key)
+    message = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=4096,
+        messages=[{
+            "role": "user",
+            "content": _ANALYSIS_PROMPT.format(transcript=transcript_text),
+        }],
+    )
+    raw = message.content[0].text.strip()
+    return json.loads(raw)
+
+
+def analyze_video(url: str, anthropic_api_key: str, openai_api_key: str) -> dict:
+    """
+    전체 분석 파이프라인.
+    반환: {"summary", "key_moments", "keywords", "meta", "source"}
+    """
+    meta = get_video_metadata(url)
+    video_id = meta["video_id"]
+    segments, source = get_transcript(url, video_id, openai_api_key)
+    transcript_text = format_transcript_for_claude(segments)
+    result = analyze_transcript(transcript_text, anthropic_api_key)
+    result["meta"] = meta
+    result["source"] = source
+    return result

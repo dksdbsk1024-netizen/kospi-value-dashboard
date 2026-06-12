@@ -79,3 +79,37 @@ def test_get_transcript_falls_back_to_whisper():
             )
     assert source == "whisper"
     assert segments == fake_segments
+
+
+import json
+from utils.video_analyzer import analyze_transcript
+
+
+def test_analyze_transcript_returns_expected_structure():
+    fake_json = json.dumps({
+        "summary": "이 영상은 금리와 주식시장의 관계를 설명합니다.",
+        "key_moments": [
+            {"timestamp": "00:01:30", "description": "금리 인상 개요"},
+        ],
+        "keywords": [
+            {
+                "keyword": "금리",
+                "summary": "금리가 오르면 PBR이 하락하는 경향이 있습니다.",
+                "timestamps": ["00:01:30", "00:05:00"],
+            }
+        ],
+    })
+    fake_message = MagicMock()
+    fake_message.content = [MagicMock(text=fake_json)]
+    with patch("anthropic.Anthropic") as MockClient:
+        instance = MockClient.return_value
+        instance.messages.create.return_value = fake_message
+        result = analyze_transcript(
+            transcript_text="[00:01:30] 금리 인상에 대해 설명합니다.",
+            anthropic_api_key="test-key",
+        )
+    assert "summary" in result
+    assert "key_moments" in result
+    assert "keywords" in result
+    assert isinstance(result["key_moments"], list)
+    assert isinstance(result["keywords"], list)
