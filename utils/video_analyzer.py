@@ -48,22 +48,21 @@ def get_video_metadata(url: str) -> dict:
 
 def get_transcript_from_captions(video_id: str) -> list[dict]:
     """
-    youtube-transcript-api로 자막 추출.
-    한국어/영어 수동 자막 우선, 없으면 자동 생성 자막 포함 전체 순회.
+    youtube-transcript-api v1.x로 자막 추출.
+    한국어/영어 우선, 없으면 자동 생성 자막 포함 전체 순회.
     반환: [{"text": str, "start": float, "duration": float}, ...]
     자막 없으면 Exception 발생.
     """
+    api = YouTubeTranscriptApi()
     try:
-        return YouTubeTranscriptApi.get_transcript(
-            video_id, languages=["ko", "en", "ko-KR", "en-US"]
-        )
+        transcript = api.fetch(video_id, languages=["ko", "en", "ko-KR", "en-US"])
+        return [{"text": s.text, "start": s.start, "duration": s.duration} for s in transcript]
     except Exception:
         pass
     # 자동 생성 자막 포함 가용한 모든 트랜스크립트 순회
-    transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-    for transcript in transcript_list:
+    for t in api.list(video_id):
         try:
-            return transcript.fetch()
+            return [{"text": s.text, "start": s.start, "duration": s.duration} for s in t.fetch()]
         except Exception:
             continue
     raise Exception("No captions available for this video")
