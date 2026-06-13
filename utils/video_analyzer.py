@@ -146,6 +146,15 @@ key_moments는 5~10개, keywords는 3~7개를 추출하세요.
 {transcript}"""
 
 
+def _extract_json(text: str) -> str:
+    """Claude가 ```json ... ``` 코드 블록으로 감싼 경우 JSON만 추출."""
+    text = text.strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?\s*\n?", "", text)
+        text = re.sub(r"\n?```\s*$", "", text)
+    return text.strip()
+
+
 def analyze_transcript(transcript_text: str, anthropic_api_key: str) -> dict:
     """
     Claude API로 트랜스크립트 분석.
@@ -161,7 +170,9 @@ def analyze_transcript(transcript_text: str, anthropic_api_key: str) -> dict:
             "content": _ANALYSIS_PROMPT.format(transcript=transcript_text),
         }],
     )
-    raw = message.content[0].text.strip()
+    raw = _extract_json(message.content[0].text)
+    if not raw:
+        raise ValueError("Claude가 빈 응답을 반환했습니다.")
     return json.loads(raw)
 
 
