@@ -49,11 +49,24 @@ def get_video_metadata(url: str) -> dict:
 def get_transcript_from_captions(video_id: str) -> list[dict]:
     """
     youtube-transcript-api로 자막 추출.
-    한국어 우선, 없으면 영어 시도.
+    한국어/영어 수동 자막 우선, 없으면 자동 생성 자막 포함 전체 순회.
     반환: [{"text": str, "start": float, "duration": float}, ...]
     자막 없으면 Exception 발생.
     """
-    return YouTubeTranscriptApi.get_transcript(video_id, languages=["ko", "en"])
+    try:
+        return YouTubeTranscriptApi.get_transcript(
+            video_id, languages=["ko", "en", "ko-KR", "en-US"]
+        )
+    except Exception:
+        pass
+    # 자동 생성 자막 포함 가용한 모든 트랜스크립트 순회
+    transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+    for transcript in transcript_list:
+        try:
+            return transcript.fetch()
+        except Exception:
+            continue
+    raise Exception("No captions available for this video")
 
 
 def get_transcript_from_whisper(url: str, openai_api_key: str) -> list[dict]:
@@ -71,6 +84,11 @@ def get_transcript_from_whisper(url: str, openai_api_key: str) -> list[dict]:
             "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "mp3"}],
             "quiet": True,
             "no_warnings": True,
+            # GCP/클라우드 IP 차단 우회: iOS 클라이언트 API 사용
+            "extractor_args": {"youtube": {"player_client": ["ios", "android"]}},
+            "http_headers": {
+                "User-Agent": "com.google.ios.youtube/19.29.1 (iPhone16,2; U; CPU iOS 17_5_1 like Mac OS X;)",
+            },
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])

@@ -37,8 +37,15 @@ if st.button("분석 시작", type="primary", disabled=not bool(url)):
         err = str(e)
         if "private" in err.lower() or "unavailable" in err.lower():
             st.error("비공개 또는 접근할 수 없는 영상입니다.")
+        elif "403" in err or "forbidden" in err.lower():
+            st.error(
+                "YouTube에서 서버 접근을 차단했습니다. "
+                "자막이 있는 영상을 사용하거나, 로컬 환경에서 실행해보세요."
+            )
         elif "whisper" in err.lower() or "audio" in err.lower():
             st.error("음성 인식에 실패했습니다. 다른 영상을 시도하거나 잠시 후 재시도하세요.")
+        elif "no captions" in err.lower():
+            st.error("자막이 없는 영상입니다. 자막이 있는 영상 URL을 사용해주세요.")
         else:
             st.error(f"분석 중 오류가 발생했습니다: {e}")
         st.stop()
